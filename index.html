@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Offline event tracker for a Final Fantasy XIV Free Company: raid, crafting, and GATE nights on a calendar, a signup grid with role slots, recurring event templates, member attendance history, and lead-only notes. Everything is saved in your browser's localStorage - no server, no accounts, no API.">
+<title>Free Company Event Tracker</title>
+<style>
+:root{
+  --bg:#14161b; --panel:#1d2027; --panel2:#242834; --line:#2f3542;
+  --text:#e8eaf0; --muted:#98a1b2; --accent:#7aa2f7; --ok:#9ece6a;
+  --raid:#7aa2f7; --craft:#e0af68; --gate:#f7768e; --other:#a9b1d6; --warn:#f7768e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+header.site{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;justify-content:space-between;padding:.7rem 1rem;background:var(--panel);border-bottom:1px solid var(--line)}
+header.site h1{font-size:1.05rem;margin:0;letter-spacing:.02em}
+header.site h1 span{color:var(--muted);font-weight:400}
+nav.tabs{display:flex;gap:.25rem;flex-wrap:wrap}
+nav.tabs button{background:none;border:1px solid transparent;color:var(--muted);padding:.35rem .7rem;border-radius:.5rem;cursor:pointer;font:inherit}
+nav.tabs button:hover{color:var(--text)}
+nav.tabs button.active{background:var(--panel2);border-color:var(--line);color:var(--text)}
+.leadmode{display:flex;align-items:center;gap:.4rem;color:var(--muted);font-size:.9rem;white-space:nowrap}
+.leadmode input{accent-color:var(--accent)}
+main{max-width:64rem;margin:1rem auto 2rem;padding:0 1rem}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:.9rem 1rem;margin-bottom:1rem}
+.panel h2{font-size:1rem;margin:0 0 .6rem}
+.panel h3{font-size:.92rem;margin:.8rem 0 .4rem}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+.row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.spread{justify-content:space-between}
+.grow{flex:1}
+button.btn{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:.4rem;padding:.35rem .7rem;cursor:pointer;font:inherit}
+button.btn:hover{border-color:var(--accent)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#12141a;font-weight:600}
+button.danger{color:var(--gate)}
+button.linklike{background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
+input[type=text],input[type=time],input[type=date],select,textarea{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:.4rem;padding:.35rem .5rem;font:inherit}
+textarea{width:100%;min-height:6rem;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+label.lbl{display:block;font-size:.8rem;color:var(--muted);margin:.35rem 0 .15rem}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:.4rem .5rem;border-bottom:1px solid var(--line);font-size:.9rem;vertical-align:middle}
+th{color:var(--muted);font-weight:600;font-size:.8rem}
+tr:last-child td{border-bottom:0}
+.badge{display:inline-block;font-size:.7rem;line-height:1.4;border-radius:.3rem;padding:1px 7px;border:1px solid var(--line);color:var(--muted)}
+.badge.raid{color:var(--raid);border-color:var(--raid)}
+.badge.craft{color:var(--craft);border-color:var(--craft)}
+.badge.gate{color:var(--gate);border-color:var(--gate)}
+.banner{padding:.5rem .7rem;border-radius:.4rem;margin:0 0 .8rem;font-size:.9rem}
+.banner.ok{background:#202e22;border:1px solid #3f5a3c;color:var(--ok)}
+.banner.err{background:#33202a;border:1px solid #5a3c46;color:var(--gate)}
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.6rem}
+.cal-head h2{margin:0}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dow{color:var(--muted);text-align:center;font-size:.72rem;padding:2px 0}
+.cal .day{min-height:5.2rem;background:var(--panel);border:1px solid var(--line);border-radius:.4rem;padding:.3rem;display:flex;flex-direction:column;gap:2px}
+.cal .day.dim{opacity:.5}
+.cal .day.today{border-color:var(--accent)}
+.cal .day .num{font-size:.72rem;color:var(--muted)}
+.cal .day.today .num{color:var(--accent);font-weight:700}
+.chip{display:block;width:100%;text-align:left;color:var(--text);background:var(--panel2);border:0;border-left:3px solid var(--other);border-radius:.25rem;padding:2px 5px;font-size:.72rem;line-height:1.3;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.raid{border-left-color:var(--raid)}
+.chip.craft{border-left-color:var(--craft)}
+.chip.gate{border-left-color:var(--gate)}
+.chip.held{opacity:.65;border-left-style:dashed}
+.toolbar{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.slotcell{display:flex;gap:.4rem;align-items:center}
+.slotcell select{min-width:12rem}
+.pct{font-variant-numeric:tabular-nums}
+footer{max-width:64rem;margin:0 auto 2rem;padding:0 1rem;color:var(--muted);font-size:.8rem}
+.meta{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;color:var(--muted);font-size:.85rem;margin:.2rem 0 .6rem}
+fieldset{border:1px solid var(--line);border-radius:.4rem;margin:0;padding:.5rem .7rem;min-width:0}
+legend{font-size:.8rem;color:var(--muted);padding:0 .3rem}
+@media (max-width:640px){
+  .cal .day{min-height:3.6rem}
+  th,td{font-size:.82rem}
+}
+</style>
+</head>
+<body>
+<header class="site">
+  <h1>Free Company Event Tracker <span>&middot; offline, in your browser</span></h1>
+  <nav class="tabs" id="tabs"></nav>
+  <label class="leadmode"><input type="checkbox" id="lead-mode"> Lead mode</label>
+</header>
+<main id="main"></main>
+<footer>
+  All data lives in this browser only (localStorage). No accounts, no server, no tracking.
+  Works fully offline from this single file &middot; MIT License &middot; &copy; 2026 Asdale Dynamics, LLC
+</footer>
+<script>
+'use strict';
+
+var DEFAULT_ANCHOR = '2026-01-04';
+var ROLES = ['Tank', 'Healer', 'DPS', 'Crafter', 'Gatherer', 'General'];
+var TYPES = ['raid', 'craft', 'gate', 'other'];
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function isoDate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function parseISO(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function startOfWeek(s) {
+  var d = parseISO(s);
+  d.setDate(d.getDate() - d.getDay());
+  return isoDate(d);
+}
+function weekIndex(weekStartISO, anchorISO) {
+  return Math.round((parseISO(weekStartISO) - parseISO(anchorISO || DEFAULT_ANCHOR)) / (7 * 86400000));
+}
+function nthWeekdayOfMonth(year, month0, weekday, n) {
+  var first = new Date(year, month0, 1);
+  var offset = (weekday - first.getDay() + 7) % 7;
+  var d = new Date(year, month0, 1 + offset + (n - 1) * 7);
+  return d.getMonth() === month0 ? isoDate(d) : null;
+}
+function templateOccursOn(t, dateISO) {
+  var rec = t.recurrence || { freq: 'weekly', days: [] };
+  var d = parseISO(dateISO);
+  var wd = d.getDay();
+  if (rec.freq === 'weekly') {
+    return (rec.days || []).indexOf(wd) !== -1;
+  }
+  if (rec.freq === 'biweekly') {
+    if ((rec.days || []).indexOf(wd) === -1) return false;
+    return weekIndex(startOfWeek(dateISO), rec.anchor) % 2 === 0;
+  }
+  if (rec.freq === 'monthly') {
+    if ((rec.days || []).length !== 1 || wd !== rec.days[0]) return false;
+    return nthWeekdayOfMonth(d.getFullYear(), d.getMonth(), rec.days[0], rec.nth || 1) === dateISO;
+  }
+  return false;
+}
+function applyTemplateToDate(t, dateISO) {
+  var slots = (t.slots || []).map(function (role, i) {
+    return { index: i, role: (typeof role === 'string') ? role : (role && role.role) || 'General' };
+  });
+  return {
+    id: t.id + '@' + dateISO,
+    templateId: t.id,
+    date: dateISO,
+    name: t.name,
+    type: t.type || 'other',
+    time: t.time || '',
+    slots: slots,
+    onetime: false
+  };
+}
+function expandRecurring(templates, rangeStartISO, rangeEndISO) {
+  var out = [];
+  var t, d;
+  for (var k = 0; k < templates.length; k++) {
+    t = templates[k];
+    for (d = parseISO(rangeStartISO); isoDate(d) <= rangeEndISO; d.setDate(d.getDate() + 1)) {
+      var dateStr = isoDate(d);
+      if (templateOccursOn(t, dateStr)) out.push(applyTemplateToDate(t, dateStr));
+    }
+  }
+  out.sort(function (a, b) {
+    return a.date === b.date ? String(a.time).localeCompare(String(b.time)) : a.date.localeCompare(b.date);
+  });
+  return out;
+}
+function allEvents(templates, onetime, startISO, endISO) {
+  var evs = expandRecurring(templates, startISO, endISO);
+  for (var k = 0; k < (onetime || []).length; k++) {
+    var ot = onetime[k];
+    if (ot.date >= startISO && ot.date <= endISO) {
+      evs.push({
+        id: 'ot' + ot.id,
+        templateId: null,
+        date: ot.date,
+        name: ot.name,
+        type: ot.type || 'other',
+        time: ot.time || '',
+        slots: (ot.slots || []).map(function (r, i) { return { index: i, role: r }; }),
+        onetime: true
+      });
+    }
+  }
+  evs.sort(function (a, b) {
+    return a.date === b.date ? String(a.time).localeCompare(String(b.time)) : a.date.localeCompare(b.date);
+  });
+  return evs;
+}
+function roleMatches(slotRole, wantRole) {
+  return wantRole === 'General' || slotRole === 'General' || slotRole === wantRole;
+}
+function firstOpenMatchingSlot(event, assigned, wantRole) {
+  for (var i = 0; i < (event.slots || []).length; i++) {
+    var s = event.slots[i];
+    if (assigned[String(s.index)] === undefined && roleMatches(s.role, wantRole)) return s.index;
+  }
+  return -1;
+}
+function fillSlotRequests(event, st, requests) {
+  var assigned = Object.assign({}, (st && st.assigned) || {});
+  var waitlist = ((st && st.waitlist) || []).map(function (w) { return Object.assign({}, w); });
+  var log = [];
+  for (var i = 0; i < (requests || []).length; i++) {
+    var r = requests[i];
+    var memberId = r.memberId, want = r.role;
+    var taken = false;
+    for (var k in assigned) if (assigned[k] === memberId) taken = true;
+    var queued = waitlist.some(function (w) { return w.memberId === memberId; });
+    if (taken || queued) { log.push({ memberId: memberId, slotIndex: null, action: 'duplicate' }); continue; }
+    var idx = firstOpenMatchingSlot(event, assigned, want);
+    if (idx >= 0) {
+      assigned[idx] = memberId;
+      log.push({ memberId: memberId, slotIndex: idx, action: 'assigned' });
+    } else {
+      waitlist.push({ memberId: memberId, role: want });
+      log.push({ memberId: memberId, slotIndex: null, action: 'waitlisted' });
+    }
+  }
+  return { assigned: assigned, waitlist: waitlist, log: log };
+}
+function autoFillFromWaitlist(event, st) {
+  var assigned = Object.assign({}, (st && st.assigned) || {});
+  var waitlist = ((st && st.waitlist) || []).map(function (w) { return Object.assign({}, w); });
+  var log = [];
+  var moved = true;
+  while (moved) {
+    moved = false;
+    for (var i = 0; i < waitlist.length; i++) {
+      var w = waitlist[i];
+      var idx = firstOpenMatchingSlot(event, assigned, w.role);
+      if (idx >= 0) {
+        assigned[idx] = w.memberId;
+        waitlist.splice(i, 1);
+        log.push({ memberId: w.memberId, slotIndex: idx, action: 'promoted' });
+        moved = true;
+        break;
+      }
+    }
+  }
+  return { assigned: assigned, waitlist: waitlist, log: log };
+}
+function setSlotMember(event, st, slotIndex, memberId) {
+  var assigned = Object.assign({}, (st && st.assigned) || {});
+  var key = String(slotIndex);
+  var prev = assigned[key];
+  if (prev === memberId) return { assigned: assigned, waitlist: st.waitlist || [], log: [] };
+  if (memberId) {
+    for (var k in assigned) {
+      if (k !== key && assigned[k] === memberId) {
+        if (prev) assigned[k] = prev; else delete assigned[k];
+      }
+    }
+    assigned[key] = memberId;
+  } else {
+    if (prev === undefined) return { assigned: assigned, waitlist: st.waitlist || [], log: [] };
+    delete assigned[key];
+  }
+  return autoFillFromWaitlist(event, { assigned: assigned, waitlist: st.waitlist || [] });
+}
+function removeAssignment(event, st, slotIndex) {
+  var assigned = Object.assign({}, (st && st.assigned) || {});
+  var key = String(slotIndex);
+  if (assigned[key] === undefined) return { assigned: assigned, waitlist: (st && st.waitlist) || [], log: [] };
+  delete assigned[key];
+  return autoFillFromWaitlist(event, { assigned: assigned, waitlist: (st && st.waitlist) || [] });
+}
+function attendanceSummary(roster, held) {
+  var eventKeys = Object.keys(held || {}).filter(function (k) {
+    return held[k] && held[k].marked;
+  });
+  var totalHeld = eventKeys.length;
+  var rows = roster.map(function (m) {
+    return { memberId: m.id, name: m.name, attended: 0, missed: 0, pct: 0 };
+  });
+  var byId = {};
+  rows.forEach(function (r) { byId[r.memberId] = r; });
+  for (var i = 0; i < eventKeys.length; i++) {
+    var ev = held[eventKeys[i]];
+    var list = (ev && ev.attendees) || [];
+    for (var j = 0; j < list.length; j++) if (byId[list[j]]) byId[list[j]].attended++;
+  }
+  for (var r = 0; r < rows.length; r++) {
+    rows[r].pct = totalHeld <= 0 ? 0 : Math.round((100 * rows[r].attended) / totalHeld);
+    rows[r].missed = totalHeld - rows[r].attended;
+  }
+  rows.sort(function (a, b) { return (b.attended - a.attended) || a.name.localeCompare(b.name); });
+  return { totalHeld: totalHeld, rows: rows };
+}
+function uid() {
+  return 'x' + Math.random().toString(36).slice(2, 9) + Math.random().toString(36).slice(2, 5);
+}
+function seedState() {
+  return {
+    version: 1,
+    leadMode: false,
+    storageWarned: false,
+    roster: [
+      { id: 'm1', name: 'Iron Cacao', roles: ['Tank'], joinedAt: '2026-01-01' },
+      { id: 'm2', name: 'Honey Lemon', roles: ['Tank'], joinedAt: '2026-01-01' },
+      { id: 'm3', name: 'Mimosa Tea', roles: ['Healer'], joinedAt: '2026-01-01' },
+      { id: 'm4', name: 'Sugarcane Stick', roles: ['Healer'], joinedAt: '2026-01-01' },
+      { id: 'm5', name: 'Kupo Nut', roles: ['DPS'], joinedAt: '2026-01-01' },
+      { id: 'm6', name: 'Yumyum Bun', roles: ['DPS'], joinedAt: '2026-01-01' },
+      { id: 'm7', name: 'Gelatin Pudding', roles: ['DPS'], joinedAt: '2026-01-01' },
+      { id: 'm8', name: 'Sugar Pop', roles: ['Crafter'], joinedAt: '2026-01-01' },
+      { id: 'm9', name: 'Popcorn Kernel', roles: ['Gatherer', 'Crafter'], joinedAt: '2026-01-01' }
+    ],
+    templates: [
+      { id: 't-raid-a', name: 'Raid Night: Static A', type: 'raid', time: '20:00', recurrence: { freq: 'weekly', days: [2] }, slots: ['Tank', 'Tank', 'Healer', 'Healer', 'DPS', 'DPS', 'DPS', 'DPS'] },
+      { id: 't-raid-b', name: 'Raid Night: Casual B', type: 'raid', time: '20:00', recurrence: { freq: 'weekly', days: [4] }, slots: ['Tank', 'Healer', 'DPS', 'DPS', 'DPS'] },
+      { id: 't-craft', name: 'Crafting Corner', type: 'craft', time: '20:00', recurrence: { freq: 'weekly', days: [3] }, slots: ['Crafter', 'Crafter', 'Crafter', 'Gatherer'] },
+      { id: 't-gate', name: 'GATE Night', type: 'gate', time: '21:00', recurrence: { freq: 'biweekly', days: [6], anchor: DEFAULT_ANCHOR }, slots: ['Host', 'Host', 'General', 'General', 'General', 'General'] },
+      { id: 't-boot', name: 'New Fellow Bootcamp', type: 'other', time: '19:00', recurrence: { freq: 'monthly', days: [6], nth: 1 }, slots: ['Mentor', 'General', 'General', 'General', 'General', 'General'] }
+    ],
+    onetime: [],
+    signups: {},
+    notes: {},
+    held: {}
+  };
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    DEFAULT_ANCHOR: DEFAULT_ANCHOR,
+    ROLES: ROLES,
+    TYPES: TYPES,
+    pad2: pad2,
+    isoDate: isoDate,
+    parseISO: parseISO,
+    startOfWeek: startOfWeek,
+    weekIndex: weekIndex,
+    nthWeekdayOfMonth: nthWeekdayOfMonth,
+    templateOccursOn: templateOccursOn,
+    applyTemplateToDate: applyTemplateToDate,
+    expandRecurring: expandRecurring,
+    allEvents: allEvents,
+    roleMatches: roleMatches,
+    firstOpenMatchingSlot: firstOpenMatchingSlot,
+    fillSlotRequests: fillSlotRequests,
+    autoFillFromWaitlist: autoFillFromWaitlist,
+    setSlotMember: setSlotMember,
+    removeAssignment: removeAssignment,
+    attendanceSummary: attendanceSummary,
+    seedState: seedState,
+    uid: uid
+  };
+}
+
+if (typeof document !== 'undefined') {
+(function () {
+  var STORE_KEY = 'fcEventTracker.v1';
+  var storageWarn = '';
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return seedState();
+      var st = JSON.parse(raw);
+      if (!st || typeof st !== 'object' || !Array.isArray(st.templates) || !Array.isArray(st.roster)) return seedState();
+      if (st.leadMode === undefined) st.leadMode = false;
+      if (!st.signups) st.signups = {};
+      if (!st.notes) st.notes = {};
+      if (!st.held) st.held = {};
+      if (!st.onetime) st.onetime = [];
+      return st;
+    } catch (e) {
+      return seedState();
+    }
+  }
+  function saveQuiet() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); storageWarn = ''; }
+    catch (e) { storageWarn = 'Could not save to localStorage; changes only last for this session.'; }
+  }
+  function save() { saveQuiet(); render(); }
+
+  var S = loadState();
+  var U = { tab: 'calendar', month: monthOfToday(), eventId: null, msg: null, msgKind: 'ok' };
+
+  function monthOfToday() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+  }
+  function todayISO() { return isoDate(new Date()); }
+  function say(kind, text) { U.msg = text; U.msgKind = kind; }
+  function esc(s) {
+    var map = [];
+    map['&'] = '&' + 'amp;';
+    map['<'] = '&' + 'lt;';
+    map['>'] = '&' + 'gt;';
+    map['"'] = '&' + 'quot;';
+    map["'"] = '&' + '#39;';
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return map[c]; });
+  }
+  function memberById(id) {
+    for (var i = 0; i < S.roster.length; i++) if (S.roster[i].id === id) return S.roster[i];
+    return null;
+  }
+  function rosterSorted() {
+    return S.roster.slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+  function templateById(id) {
+    for (var i = 0; i < S.templates.length; i++) if (S.templates[i].id === id) return S.templates[i];
+    return null;
+  }
+  function buildEvent(id) {
+    if (id.slice(0, 2) === 'ot') {
+      var base = id.slice(2);
+      for (var i = 0; i < S.onetime.length; i++) {
+        if (S.onetime[i].id === base) {
+          var ot = S.onetime[i];
+          return {
+            id: id, templateId: null, date: ot.date, name: ot.name,
+            type: ot.type || 'other', time: ot.time || '',
+            slots: (ot.slots || []).map(function (r, j) { return { index: j, role: r }; }),
+            onetime: true
+          };
+        }
+      }
+      return null;
+    }
+    var at = id.lastIndexOf('@');
+    if (at < 1) return null;
+    var t = templateById(id.slice(0, at));
+    if (!t) return null;
+    return applyTemplateToDate(t, id.slice(at + 1));
+  }
+  function signupState(eventId) {
+    return S.signups[eventId] || { assigned: {}, waitlist: [] };
+  }
+  function putSignup(eventId, st) {
+    st.waitlist = st.waitlist || [];
+    S.signups[eventId] = st;
+    return st;
+  }
+  function signupSummary(event, st) {
+    var filled = 0;
+    for (var k in st.assigned) {
+      var idx = Number(k);
+      var has = false;
+      for (var i = 0; i < event.slots.length; i++) if (event.slots[i].index === idx) has = true;
+      if (has) filled++;
+    }
+    return filled + ' of ' + event.slots.length + ' slots filled';
+  }
+  function fmtTime(t) {
+    if (!t) return '';
+    var p = String(t).split(':');
+    var h = Number(p[0]), m = p[1] || '00';
+    if (isNaN(h)) return '';
+    var ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return h + ':' + m + ' ' + ap;
+  }
+  function fmtDate(dISO) {
+    return parseISO(dISO).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function fmtMonth(ym) {
+    var p = ym.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, 15).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+  function monthRange(ym) {
+    var p = ym.split('-').map(Number);
+    var last = new Date(p[0], p[1], 0).getDate();
+    return { start: p[0] + '-' + pad2(p[1]) + '-01', end: p[0] + '-' + pad2(p[1]) + '-' + pad2(last) };
+  }
+  function shiftMonth(ym, delta) {
+    var p = ym.split('-').map(Number);
+    var d = new Date(p[0], p[1] - 1 + delta, 1);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+  }
+  var DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var TYPE_LABEL = { raid: 'Raid', craft: 'Craft', gate: 'GATE', other: 'Misc' };
+  var NTH_LABEL = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' };
+  function freqLabel(t) {
+    var rec = t.recurrence || {};
+    var days = rec.days || [];
+    var names = days.map(function (d) { return DAY_ABBR[d]; });
+    if (rec.freq === 'weekly') return days.length ? 'Every week on ' + names.join(', ') : 'No days set';
+    if (rec.freq === 'biweekly') return names.length ? 'Every 2 weeks on ' + names.join(', ') + ' (anchor ' + (rec.anchor || DEFAULT_ANCHOR) + ')' : 'No days set';
+    if (rec.freq === 'monthly') return names.length === 1 ? 'The ' + (NTH_LABEL[rec.nth] || '1st') + ' ' + names[0] + ' of each month' : 'Pick one weekday';
+    return '';
+  }
+  function roleCounts(slots) {
+    var order = [], counts = {};
+    for (var i = 0; i < slots.length; i++) {
+      var r = slots[i];
+      if (counts[r] === undefined) { counts[r] = 0; order.push(r); }
+      counts[r]++;
+    }
+    return order.map(function (r) { return r + ' x' + counts[r]; }).join(', ');
+  }
+  function eventMeta(ev) {
+    return [TYPE_LABEL[ev.type] || 'Misc', fmtDate(ev.date), (ev.time ? fmtTime(ev.time) : '')]
+      .filter(Boolean).join(' \u00B7 ');
+  }
+
+  var TABS = [
+    { id: 'calendar', label: 'Calendar' },
+    { id: 'members', label: 'Members' },
+    { id: 'attendance', label: 'Attendance' },
+    { id: 'settings', label: 'Settings' }
+  ];
+
+  function render() {
+    saveQuiet();
+    var nav = document.getElementById('tabs');
+    var navHtml = '';
+    for (var i = 0; i < TABS.length; i++) {
+      var t = TABS[i];
+      navHtml += '<button data-action="tab" data-tab="' + t.id + '" class="' + (U.tab === t.id || (U.tab === 'event' && t.id === 'calendar') ? 'active' : '') + '">' + t.label + '</button>';
+    }
+    nav.innerHTML = navHtml;
+    var lead = document.getElementById('lead-mode');
+    if (lead) lead.checked = !!S.leadMode;
+
+    var h = '';
+    if (storageWarn) h += '<div class="banner err" role="status">' + esc(storageWarn) + '</div>';
+    if (U.msg) {
+      h += '<div class="banner ' + (U.msgKind === 'err' ? 'err' : 'ok') + '" role="status">' + esc(U.msg) + '<button type="button" class="btn small" data-action="dismiss-msg" style="margin-left:.6rem">Dismiss</button></div>';
+      U.msg = null;
+    }
+    if (U.tab === 'calendar') h += viewCalendar();
+    else if (U.tab === 'event') h += viewEvent();
+    else if (U.tab === 'members') h += viewMembers();
+    else if (U.tab === 'attendance') h += viewAttendance();
+    else h += viewSettings();
+    document.getElementById('main').innerHTML = h;
+  }
+
+  function viewCalendar() {
+    var r = monthRange(U.month);
+    var first = parseISO(r.start);
+    var gridStart = parseISO(r.start);
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+    var last = parseISO(r.end);
+    var cellCount = Math.ceil((first.getDay() + last.getDate()) / 7) * 7;
+    var gridEnd = new Date(gridStart);
+    gridEnd.setDate(gridEnd.getDate() + cellCount - 1);
+    var events = allEvents(S.templates, S.onetime, isoDate(gridStart), isoDate(gridEnd));
+    var dayEvents = {};
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!dayEvents[ev.date]) dayEvents[ev.date] = [];
+      dayEvents[ev.date].push(ev);
+    }
+    var heldCount = function (id) { return !!S.held[id]; };
+
+    var h = '<div class="cal-head">';
+    h += '<h2>' + esc(fmtMonth(U.month)) + '</h2>';
+    h += '<div class="toolbar">';
+    h += '<button class="btn" data-action="cal-prev" aria-label="Previous month">&larr; Prev</button>';
+    h += '<button class="btn" data-action="cal-today">Today</button>';
+    h += '<button class="btn" data-action="cal-next" aria-label="Next month">Next &rarr;</button>';
+    h += '</div></div>';
+
+    h += '<div class="cal">';
+    for (var w = 0; w < 7; w++) h += '<div class="dow">' + DAY_ABBR[w] + '</div>';
+    var cur = new Date(gridStart);
+    var today = todayISO();
+    for (var c = 0; c < cellCount; c++) {
+      var dISO = isoDate(cur);
+      var inMonth = cur.getMonth() + 1 === Number(U.month.split('-')[1]) && cur.getFullYear() === Number(U.month.split('-')[0]);
+      h += '<div class="day' + (inMonth ? '' : ' dim') + (dISO === today ? ' today' : '') + '">';
+      h += '<span class="num">' + cur.getDate() + '</span>';
+      var list = dayEvents[dISO] || [];
+      for (var j = 0; j < list.length; j++) {
+        var e = list[j];
+        h += '<button class="chip ' + esc(e.type) + (heldCount(e.id) ? ' held' : '') + '" data-action="open-event" data-id="' + esc(e.id) + '" title="' + esc(e.name) + ' - ' + esc(eventMeta(e)) + (heldCount(e.id) ? ' (held)' : '') + '">';
+        h += esc(fmtTime(e.time)) + ' ' + esc(e.name);
+        if (heldCount(e.id)) h += ' (held)';
+        h += '</button>';
+      }
+      h += '</div>';
+      cur.setDate(cur.getDate() + 1);
+    }
+    h += '</div>';
+
+    var monthEvents = allEvents(S.templates, S.onetime, r.start, r.end);
+    h += '<div class="panel" style="margin-top:1rem"><h2>Events this month (' + monthEvents.length + ')</h2>';
+    if (monthEvents.length === 0) {
+      h += '<p class="muted">No events this month. Add one below or set up templates in Settings.</p>';
+    } else {
+      h += '<ul>';
+      for (var m = 0; m < monthEvents.length; m++) {
+        var mev = monthEvents[m];
+        h += '<li><button class="linklike" data-action="open-event" data-id="' + esc(mev.id) + '">' + esc(mev.name) + '</button> <span class="muted small">' + esc(eventMeta(mev)) + (heldCount(mev.id) ? ' \u00B7 held' : '') + '</span></li>';
+      }
+      h += '</ul>';
+    }
+    h += '</div>';
+
+    h += '<div class="panel"><h2>Add a one-off event</h2>';
+    h += '<p class="muted small">For schedule breakers: a special clear party, an FC anniversary, a winners-pool GATE marathon. Recurring nights belong in Settings &rarr; templates.</p>';
+    h += '<div class="row"><div><label class="lbl" for="ot-date">Date</label><input type="date" id="ot-date" value="' + (U.otDate || todayISO()) + '"></div>';
+    h += '<div><label class="lbl" for="ot-name">Name</label><input type="text" id="ot-name" placeholder="e.g. Crystal Tower Night" size="24"></div>';
+    h += '<div><label class="lbl" for="ot-time">Start time</label><input type="time" id="ot-time" value="20:00"></div>';
+    h += '<div><label class="lbl" for="ot-type">Type</label><select id="ot-type">';
+    for (var ti = 0; ti < TYPES.length; ti++) h += '<option value="' + TYPES[ti] + '">' + TYPE_LABEL[TYPES[ti]] + '</option>';
+    h += '</select></div></div>';
+    h += '<label class="lbl" for="ot-slots">Role slots (comma-separated order, e.g. Tank, Tank, Healer, Healer, DPS, DPS, DPS, DPS)</label>';
+    h += '<input type="text" id="ot-slots" value="General, General, General" size="40">';
+    h += '<div class="row" style="margin-top:.6rem"><button class="btn primary" data-action="ot-add">Add event</button></div>';
+    h += '</div>';
+    return h;
+  }
+
+  function viewEvent() {
+    var ev = buildEvent(U.eventId);
+    if (!ev) {
+      return '<div class="panel"><p>That event could not be found. It may have been deleted.</p><button class="btn" data-action="tab" data-tab="calendar">Back to calendar</button></div>';
+    }
+    var st = signupState(ev.id);
+    var members = rosterSorted();
+    var tpl = ev.templateId ? templateById(ev.templateId) : null;
+    var heldRec = S.held[ev.id];
+    var isHeld = !!(heldRec && heldRec.marked);
+
+    var h = '<div class="panel">';
+    h += '<div class="row spread"><h2 style="margin:0">' + esc(ev.name) + '</h2>';
+    h += '<div class="row"><button class="btn" data-action="tab" data-tab="calendar">&larr; Calendar</button></div></div>';
+    h += '<div class="meta"><span class="badge ' + esc(ev.type) + '">' + (TYPE_LABEL[ev.type] || 'Misc') + '</span>';
+    h += '<span>' + esc(fmtDate(ev.date)) + (ev.time ? ' \u00B7 ' + esc(fmtTime(ev.time)) : '') + '</span>';
+    if (isHeld) h += '<span class="badge">held \u00B7 attendance recorded</span>';
+    h += '</div>';
+    if (tpl) h += '<p class="muted small">Repeats: ' + esc(freqLabel(tpl)) + ' \u00B7 edit the series in Settings. This signup list only covers this night.</p>';
+    else h += '<p class="muted small">One-off event \u00B7 <button class="linklike" data-action="ot-delete" data-id="' + esc(ev.id) + '">Delete this event</button></p>';
+    h += '</div>';
+
+    h += '<div class="panel"><h2>Signup grid (' + esc(signupSummary(ev, st)) + ')</h2>';
+    if (ev.slots.length === 0) {
+      h += '<p class="muted">This event has no role slots yet' + (tpl ? ' - add roles to the template in Settings.' : '.') + '</p>';
+    } else {
+      h += '<table><thead><tr><th style="width:3rem">Slot</th><th style="width:9rem">Role</th><th>Signed up</th><th style="width:5rem"></th></tr></thead><tbody>';
+      for (var i = 0; i < ev.slots.length; i++) {
+        var sl = ev.slots[i];
+        var assignedId = st.assigned[String(sl.index)];
+        var member = assignedId ? memberById(assignedId) : null;
+        h += '<tr><td>' + (sl.index + 1) + '</td><td>' + esc(sl.role) + '</td>';
+        h += '<td class="slotcell"><select data-onchange="slot-set" data-id="' + esc(ev.id) + '" data-idx="' + sl.index + '" aria-label="Member for slot ' + (sl.index + 1) + '">';
+        h += '<option value="">(open)</option>';
+        for (var m = 0; m < members.length; m++) {
+          var mm = members[m];
+          var busy = false;
+          for (var k in st.assigned) if (k !== String(sl.index) && st.assigned[k] === mm.id) busy = true;
+          var disabled = busy ? ' disabled' : '';
+          var sel = assignedId === mm.id ? ' selected' : '';
+          h += '<option value="' + esc(mm.id) + '"' + disabled + sel + '>' + esc(mm.name) + (mm.roles && mm.roles.length ? ' (' + mm.roles.join('/') + ')' : '') + '</option>';
+        }
+        h += '</select></td>';
+        h += '<td>' + (assignedId ? '<button class="btn danger small" data-action="slot-clear" data-id="' + esc(ev.id) + '" data-idx="' + sl.index + '">Clear</button>' : '') + '</td></tr>';
+      }
+      h += '</tbody></table>';
+    }
+    h += '<h3>Add a signup</h3><div class="row">';
+    h += '<select id="as-member" data-onchange="as-member" aria-label="Member"><option value="">Choose member...</option>';
+    for (var am = 0; am < members.length; am++) {
+      var amm = members[am];
+      h += '<option value="' + esc(amm.id) + '">' + esc(amm.name) + (amm.roles.length ? ' (' + amm.roles.join('/') + ')' : '') + '</option>';
+    }
+    h += '</select>';
+    h += '<select id="as-role" aria-label="Role wanted"></select>';
+    h += '<button class="btn primary" data-action="signup-add" data-id="' + esc(ev.id) + '">Add signup</button></div>';
+    h += '<p class="muted small">Pick a member and the role they want; the tracker places them in the first open matching slot, or the waitlist. General slots fit anyone.</p>';
+    h += '</div>';
+
+    h += '<div class="panel"><h2>Waitlist (' + st.waitlist.length + ')</h2>';
+    if (st.waitlist.length === 0) h += '<p class="muted">Nobody is waiting.</p>';
+    else {
+      h += '<table><thead><tr><th>Member</th><th>Wanted role</th><th style="width:12rem"></th></tr></thead><tbody>';
+      for (var wv = 0; wv < st.waitlist.length; wv++) {
+        var wl = st.waitlist[wv];
+        var wmem = memberById(wl.memberId);
+        h += '<tr><td>' + esc(wmem ? wmem.name : wl.memberId) + '</td><td>' + esc(wl.role) + '</td>';
+        h += '<td><button class="btn" data-action="waitlist-assign" data-id="' + esc(ev.id) + '" data-w="' + wv + '">Assign now</button> ';
+        h += '<button class="btn danger" data-action="waitlist-remove" data-id="' + esc(ev.id) + '" data-w="' + wv + '">Remove</button></td></tr>';
+      }
+      h += '</tbody></table>';
+    }
+    h += '</div>';
+
+    if (S.leadMode) {
+      var rec = S.held[ev.id];
+      h += '<div class="panel"><h2>Lead tools</h2>';
+      h += '<h3>Attendance for this night</h3>';
+      if (rec && rec.marked) {
+        h += '<p>This night counts in the attendance history (' + rec.attendees.length + ' attendee(s) recorded' + (rec.markedAt ? ' on ' + esc(rec.markedAt) : '') + ').</p>';
+      } else if (rec) {
+        h += '<p class="muted small">Recorded but not yet marked as held.</p>';
+      } else {
+        h += '<p class="muted small">Check everyone who showed up, then mark the night as held. This feeds the Attendance tab history.</p>';
+      }
+      h += '<table><thead><tr><th style="width:2rem"></th><th>Member</th><th>In signups</th></tr></thead><tbody>';
+      var heldAttendees = rec ? rec.attendees : [];
+      for (var hv = 0; hv < S.roster.length; hv++) {
+        var hm = S.roster[hv];
+        var inList = heldAttendees.indexOf(hm.id) !== -1;
+        var inSlots = false;
+        for (var kk in st.assigned) if (st.assigned[kk] === hm.id) inSlots = true;
+        h += '<tr><td><input type="checkbox" data-onchange="held-toggle" data-id="' + esc(ev.id) + '" data-member="' + esc(hm.id) + '"' + (inList ? ' checked' : '') + ' aria-label="Attended: ' + esc(hm.name) + '"></td>';
+        h += '<td>' + esc(hm.name) + '</td><td class="muted small">' + (inSlots ? 'in signup grid' : '') + '</td></tr>';
+      }
+      h += '</tbody></table>';
+      h += '<div class="row" style="margin-top:.6rem">';
+      if (rec && rec.marked) {
+        h += '<button class="btn" data-action="held-unmark" data-id="' + esc(ev.id) + '">Unmark held</button>';
+      } else {
+        h += '<button class="btn primary" data-action="held-mark" data-id="' + esc(ev.id) + '">Mark as held</button>';
+      }
+      if (rec) h += '<button class="btn danger" data-action="held-clear" data-id="' + esc(ev.id) + '">Clear record</button>';
+      h += '</div>';
+      h += '<h3 style="margin-top:1rem">Lead-only notes</h3>';
+      h += '<p class="muted small">Only visible while Lead mode is on. Strats, loot rules, "we are trying P7 tonight", whatever the team needs to know.</p>';
+      h += '<textarea data-oninput="note" data-onchange="note" data-id="' + esc(ev.id) + '" aria-label="Lead-only notes">' + esc(S.notes[ev.id] || '') + '</textarea>';
+      h += '</div>';
+    }
+
+    return h;
+  }
+
+  function viewMembers() {
+    var h = '<div class="panel"><h2>Members (' + S.roster.length + ')</h2>';
+    h += '<p class="muted small">FC roster names only - the tracker never stores anything more personal. Roles say what a member can sign up for; everybody also fits General slots.</p>';
+    if (S.roster.length === 0) h += '<p class="muted">No members yet - add the first one below.</p>';
+    else {
+      h += '<table><thead><tr><th>Name</th><th>Can fill</th><th>Joined</th><th style="width:5rem"></th></tr></thead><tbody>';
+      for (var i = 0; i < S.roster.length; i++) {
+        var m = S.roster[i];
+        h += '<tr><td><input type="text" value="' + esc(m.name) + '" data-oninput="member-name" data-onchange="member-name" data-id="' + esc(m.id) + '" aria-label="Member name"></td><td>';
+        for (var r = 0; r < ROLES.length; r++) {
+          var role = ROLES[r];
+          var checked = (m.roles || []).indexOf(role) !== -1;
+          h += '<label class="small" style="margin-right:.6rem"><input type="checkbox" style="vertical-align:-2px" data-onchange="member-role" data-id="' + esc(m.id) + '" data-role="' + esc(role) + '"' + (checked ? ' checked' : '') + '> ' + role + '</label>';
+        }
+        h += '</td><td class="muted small">' + esc(m.joinedAt || '') + '</td>';
+        h += '<td><button class="btn danger small" data-action="member-del" data-id="' + esc(m.id) + '">Remove</button></td></tr>';
+      }
+      h += '</tbody></table>';
+    }
+    h += '<h3>Add a member</h3><div class="row">';
+    h += '<input type="text" id="new-member-name" placeholder="Name (game name)" aria-label="New member name">';
+    h += '<button class="btn primary" data-action="member-add">Add member</button>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function viewAttendance() {
+    var sum = attendanceSummary(S.roster, S.held);
+    var h = '<div class="panel"><h2>Attendance history</h2>';
+    if (sum.totalHeld === 0) {
+      h += '<p class="muted">No nights marked as held yet. Turn on Lead mode, open an event, and record attendance after the night ends.</p>';
+      return h + '</div>';
+    }
+    h += '<p class="muted small">Based on ' + sum.totalHeld + ' event night(s) marked as held.</p>';
+    h += '<table><thead><tr><th>Member</th><th>Attended</th><th>Missed</th><th>Turnout</th></tr></thead><tbody>';
+    for (var i = 0; i < sum.rows.length; i++) {
+      var r = sum.rows[i];
+      h += '<tr><td>' + esc(r.name) + '</td><td class="pct">' + r.attended + '</td><td class="pct">' + r.missed + '</td><td class="pct">' + r.pct + '%</td></tr>';
+    }
+    h += '</tbody></table></div>';
+
+    var keys = Object.keys(S.held).filter(function (k) { return S.held[k] && S.held[k].marked; }).sort();
+    h += '<div class="panel"><h2>Held nights</h2><table><thead><tr><th>Event</th><th>Date</th><th>Attendees</th><th></th></tr></thead><tbody>';
+    for (var k = 0; k < keys.length; k++) {
+      var ev = buildEvent(keys[k]);
+      var rec = S.held[keys[k]];
+      h += '<tr><td>' + (ev ? esc(ev.name) : '<span class="muted">deleted event</span>') + '</td>';
+      h += '<td class="muted small">' + esc(rec.date || '') + '</td>';
+      h += '<td class="pct">' + rec.attendees.length + '</td>';
+      h += '<td>' + (ev ? '<button class="btn small" data-action="open-event" data-id="' + esc(ev.id) + '">Open</button>' : '') + ' <button class="btn danger small" data-action="held-clear" data-id="' + esc(keys[k]) + '">Unmark</button></td></tr>';
+    }
+    h += '</tbody></table></div>';
+    return h;
+  }
+
+  function viewSettings() {
+    var h = '<div class="panel"><h2>Recurring event templates (' + S.templates.length + ')</h2>';
+    h += '<p class="muted small">Templates glue the calendar together: name a night, pick when it repeats, and list its role slots. A signup list is then generated automatically for every matching date.</p>';
+    if (S.templates.length === 0) h += '<p class="muted">No templates yet - the calendar will be empty until you add some.</p>';
+    for (var i = 0; i < S.templates.length; i++) {
+      var t = S.templates[i];
+      var rec = t.recurrence || { freq: 'weekly', days: [] };
+      h += '<fieldset style="margin-bottom:.8rem"><legend>' + esc(t.name) + '</legend>';
+      h += '<div class="row"><div><label class="lbl">Name</label><input type="text" value="' + esc(t.name) + '" data-oninput="tpl-change" data-onchange="tpl-change" data-tid="' + esc(t.id) + '" data-field="name"></div>';
+      h += '<div><label class="lbl">Type</label><select data-onchange="tpl-change" data-tid="' + esc(t.id) + '" data-field="type">';
+      for (var ti = 0; ti < TYPES.length; ti++) h += '<option value="' + TYPES[ti] + '"' + (t.type === TYPES[ti] ? ' selected' : '') + '>' + TYPE_LABEL[TYPES[ti]] + '</option>';
+      h += '</select></div>';
+      h += '<div><label class="lbl">Start time</label><input type="time" value="' + esc(t.time || '') + '" data-onchange="tpl-change" data-oninput="tpl-change" data-tid="' + esc(t.id) + '" data-field="time"></div></div>';
+
+      h += '<div class="row" style="margin-top:.4rem"><div><label class="lbl">Repeats</label><select data-onchange="tpl-change" data-tid="' + esc(t.id) + '" data-field="freq">';
+      h += '<option value="weekly"' + (rec.freq === 'weekly' ? ' selected' : '') + '>Every week</option>';
+      h += '<option value="biweekly"' + (rec.freq === 'biweekly' ? ' selected' : '') + '>Every 2 weeks</option>';
+      h += '<option value="monthly"' + (rec.freq === 'monthly' ? ' selected' : '') + '>Monthly (nth weekday)</option>';
+      h += '</select></div>';
+
+      if (rec.freq === 'monthly') {
+        h += '<div><label class="lbl">Weekday</label><select data-onchange="tpl-change" data-tid="' + esc(t.id) + '" data-field="wd">';
+        for (var wd = 0; wd < 7; wd++) h += '<option value="' + wd + '"' + ((rec.days || [])[0] === wd ? ' selected' : '') + '>' + DAY_ABBR[wd] + '</option>';
+        h += '</select></div>';
+        h += '<div><label class="lbl">Which one</label><select data-onchange="tpl-change" data-tid="' + esc(t.id) + '" data-field="nth">';
+        for (var nth = 1; nth <= 5; nth++) h += '<option value="' + nth + '"' + ((rec.nth || 1) === nth ? ' selected' : '') + '>' + NTH_LABEL[nth] + '</option>';
+        h += '</select></div>';
+      } else {
+        h += '<div><label class="lbl">Days</label>';
+        for (var dd = 0; dd < 7; dd++) {
+          h += '<label class="small" style="margin-right:.4rem"><input type="checkbox" style="vertical-align:-2px" data-onchange="tpl-day" data-tid="' + esc(t.id) + '" data-day="' + dd + '"' + ((rec.days || []).indexOf(dd) !== -1 ? ' checked' : '') + '> ' + DAY_ABBR[dd] + '</label>';
+        }
+        h += '</div>';
+        if (rec.freq === 'biweekly') {
+          h += '<div><label class="lbl">Anchor week (a date inside week 1 of the pattern)</label><input type="date" value="' + esc(rec.anchor || DEFAULT_ANCHOR) + '" data-onchange="tpl-change" data-tid="' + esc(t.id) + '" data-field="anchor"></div>';
+        }
+      }
+      h += '</div>';
+
+      h += '<label class="lbl" style="margin-top:.4rem">Role slots (comma-separated)</label>';
+      h += '<input type="text" style="min-width:24rem" value="' + esc((t.slots || []).join(', ')) + '" data-oninput="tpl-slots" data-onchange="tpl-slots" data-tid="' + esc(t.id) + '">';
+      h += '<div class="row spread" style="margin-top:.6rem"><span class="muted small">' + esc(freqLabel(t)) + ' \u00B7 ' + esc(roleCounts(t.slots || [])) + '</span>';
+      h += '<button class="btn danger small" data-action="tpl-del" data-tid="' + esc(t.id) + '">Delete template</button></div>';
+      h += '</fieldset>';
+    }
+    h += '<h3>Add a template</h3><div class="row">';
+    h += '<div><label class="lbl">Name</label><input type="text" id="nt-name" placeholder="Raid Night X"></div>';
+    h += '<div><label class="lbl">Type</label><select id="nt-type">';
+    for (var nt = 0; nt < TYPES.length; nt++) h += '<option value="' + TYPES[nt] + '">' + TYPE_LABEL[TYPES[nt]] + '</option>';
+    h += '</select></div>';
+    h += '<div><label class="lbl">Time</label><input type="time" id="nt-time" value="20:00"></div>';
+    h += '<div><label class="lbl">Repeats</label><select id="nt-freq"><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly (nth weekday)</option></select></div>';
+    h += '<div><label class="lbl">Weekday</label><select id="nt-day">';
+    for (var nd = 0; nd < 7; nd++) h += '<option value="' + nd + '"' + (nd === 2 ? ' selected' : '') + '>' + DAY_ABBR[nd] + '</option>';
+    h += '</select></div>';
+    h += '<div><label class="lbl">Slots (comma-separated)</label><input type="text" id="nt-slots" value="General, General, General" size="28"></div>';
+    h += '</div><div class="row" style="margin-top:.6rem"><button class="btn primary" data-action="tpl-add">Add template</button></div>';
+    h += '</div>';
+
+    h += '<div class="panel"><h2>Your data</h2>';
+    h += '<p class="muted small">Everything is stored in this browser only (localStorage). Export to move or back up; import replaces what is here.</p>';
+    h += '<div class="row"><button class="btn" data-action="export-data">Export data (JSON)</button>';
+    h += '<label class="muted small" for="import-json">Paste an exported JSON here:</label><br>';
+    h += '</div>';
+    h += '<textarea id="import-json" aria-label="Import JSON" placeholder="{ "version": 1, ... }"></textarea>';
+    h += '<div class="row" style="margin-top:.6rem">';
+    h += '<button class="btn" data-action="import-data">Import data</button>';
+    h += '<button class="btn" data-action="seed-starter">Restore starter schedule</button>';
+    h += '<button class="btn danger" data-action="erase-all">Erase all data</button></div>';
+    h += '<p class="muted small">Lead mode also lives here (or in the header toggle): it shows lead-only notes and attendance recording.</p>';
+    h += '</div>';
+    return h;
+  }
+
+  var clickHandlers = {
+    'tab': function (el) { U.tab = el.dataset.tab; U.eventId = null; },
+    'cal-prev': function () { U.month = shiftMonth(U.month, -1); },
+    'cal-next': function () { U.month = shiftMonth(U.month, 1); },
+    'cal-today': function () { U.month = monthOfToday(); },
+    'open-event': function (el) { U.tab = 'event'; U.eventId = el.dataset.id; },
+    'dismiss-msg': function () { U.msg = null; },
+    'slot-clear': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (ev) putSignup(ev.id, removeAssignment(ev, signupState(ev.id), Number(el.dataset.idx)));
+    },
+    'signup-add': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (!ev) return;
+      var mSel = document.getElementById('as-member');
+      var rSel = document.getElementById('as-role');
+      var memberId = mSel ? mSel.value : '';
+      var role = rSel ? rSel.value : '';
+      if (!memberId) { say('err', 'Pick a member to sign up first.'); return; }
+      if (!role) { say('err', 'Pick the role they want.'); return; }
+      var mem = memberById(memberId);
+      if (!mem) { say('err', 'That member is no longer on the roster.'); return; }
+      var res = fillSlotRequests(ev, signupState(ev.id), [{ memberId: memberId, role: role }]);
+      putSignup(ev.id, res);
+      for (var i = 0; i < res.log.length; i++) {
+        var l = res.log[i];
+        if (l.action === 'assigned') { say('ok', mem.name + ' signed up as ' + role + ' \u00B7 slot ' + (l.slotIndex + 1) + '.'); }
+        else if (l.action === 'waitlisted') { say('ok', 'All matching slots are full - ' + mem.name + ' is on the waitlist as ' + role + '.'); }
+        else { say('err', mem.name + ' is already on the list for this event.'); }
+      }
+    },
+    'waitlist-assign': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (!ev) return;
+      var st = signupState(ev.id);
+      var entry = st.waitlist[Number(el.dataset.w)];
+      if (!entry) return;
+      var idx = firstOpenMatchingSlot(ev, st.assigned, entry.role);
+      if (idx < 0) { say('err', 'No open slot matches ' + entry.role + ' right now.'); return; }
+      st.assigned[idx] = entry.memberId;
+      st.waitlist.splice(Number(el.dataset.w), 1);
+      putSignup(ev.id, st);
+      say('ok', 'Assigned to slot ' + (idx + 1) + '.');
+    },
+    'waitlist-remove': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (!ev) return;
+      var st = signupState(ev.id);
+      st.waitlist.splice(Number(el.dataset.w), 1);
+      putSignup(ev.id, st);
+    },
+    'held-mark': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (!ev) return;
+      var r = S.held[ev.id];
+      if (!r) r = S.held[ev.id] = { date: ev.date, name: ev.name, attendees: [], marked: false, markedAt: '' };
+      r.date = ev.date;
+      r.name = ev.name;
+      r.marked = true;
+      r.markedAt = todayISO();
+      say('ok', 'Marked as held - ' + r.attendees.length + ' attendee(s) recorded in history.');
+    },
+    'held-unmark': function (el) {
+      var evR = S.held[el.dataset.id];
+      if (evR) evR.marked = false;
+      say('ok', 'Unmarked. This night no longer counts in attendance history.');
+    },
+    'held-clear': function (el) {
+      delete S.held[el.dataset.id];
+      say('ok', 'Attendance record cleared.');
+    },
+    'ot-delete': function (el) {
+      var id = el.dataset.id.slice(2);
+      if (!confirm('Delete this one-off event and its signups?')) return;
+      S.onetime = S.onetime.filter(function (o) { return o.id !== id; });
+      delete S.signups[el.dataset.id];
+      delete S.notes[el.dataset.id];
+      delete S.held[el.dataset.id];
+      U.tab = 'calendar';
+      say('ok', 'One-off event deleted.');
+    },
+    'member-del': function (el) {
+      var id = el.dataset.id;
+      var mem = memberById(id);
+      if (!confirm('Remove ' + (mem ? mem.name : 'member') + ' from the roster? Their signups will be cleared.')) return;
+      S.roster = S.roster.filter(function (m) { return m.id !== id; });
+      for (var key in S.signups) {
+        var stt = S.signups[key];
+        for (var k in stt.assigned) if (stt.assigned[k] === id) delete stt.assigned[k];
+        stt.waitlist = (stt.waitlist || []).filter(function (w) { return w.memberId !== id; });
+      }
+      for (var hk in S.held) {
+        S.held[hk].attendees = S.held[hk].attendees.filter(function (a) { return a !== id; });
+      }
+      say('ok', 'Member removed.');
+    },
+    'member-add': function () {
+      var input = document.getElementById('new-member-name');
+      var name = (input.value || '').trim();
+      if (!name) { say('err', 'Give the new member a name.'); return; }
+      S.roster.push({ id: uid(), name: name, roles: [], joinedAt: todayISO() });
+      say('ok', name + ' added to the roster.');
+    },
+    'tpl-del': function (el) {
+      var tid = el.dataset.tid;
+      var t = templateById(tid);
+      if (!confirm('Delete template "' + (t ? t.name : tid) + '"? Its future calendar nights will disappear.')) return;
+      S.templates = S.templates.filter(function (x) { return x.id !== tid; });
+      for (var key in S.signups) { if (key.indexOf(tid + '@') === 0) delete S.signups[key]; }
+      for (var nkey in S.notes) { if (nkey.indexOf(tid + '@') === 0) delete S.notes[nkey]; }
+      say('ok', 'Template deleted.');
+    },
+    'tpl-add': function () {
+      var name = (document.getElementById('nt-name').value || '').trim();
+      if (!name) { say('err', 'Give the template a name.'); return; }
+      var type = document.getElementById('nt-type').value;
+      var time = document.getElementById('nt-time').value || '20:00';
+      var freq = document.getElementById('nt-freq').value;
+      var day = Number(document.getElementById('nt-day').value);
+      var slotsCsv = document.getElementById('nt-slots').value;
+      var slots = slotsCsv.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (slots.length === 0) { say('err', 'Add at least one role slot.'); return; }
+      var rec = freq === 'monthly' ? { freq: freq, days: [day], nth: 1 } : { freq: freq, days: [day], anchor: DEFAULT_ANCHOR };
+      S.templates.push({ id: uid(), name: name, type: type, time: time, recurrence: rec, slots: slots });
+      say('ok', '"' + name + '" template added - it now appears on matching nights.');
+    },
+    'seed-starter': function () {
+      if (!confirm('Replace templates, members, signups, notes, and attendance with the starter schedule?')) return;
+      S = seedState();
+      U.tab = 'calendar';
+      U.eventId = null;
+      say('ok', 'Starter schedule restored.');
+    },
+    'erase-all': function () {
+      if (!confirm('Erase ALL data (members, templates, signups, attendance, notes)?')) return;
+      S = seedState();
+      S.roster = [];
+      S.templates = [];
+      S.onetime = [];
+      say('ok', 'All erased. A blank slate.');
+    },
+    'export-data': function () {
+      var text = JSON.stringify(S, null, 2);
+      var blob = new Blob([text], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'free-company-event-tracker-' + todayISO() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      say('ok', 'Exported. Keep the JSON somewhere safe.');
+    },
+    'import-data': function () {
+      var ta = document.getElementById('import-json');
+      var text = ta.value || '';
+      if (!text.trim()) { say('err', 'Paste exported JSON into the box, then press Import.'); return; }
+      var st;
+      try { st = JSON.parse(text); } catch (e) { say('err', 'That JSON could not be parsed.'); return; }
+      if (!st || typeof st !== 'object' || !Array.isArray(st.templates) || !Array.isArray(st.roster)) {
+        say('err', 'That file does not look like an export from this app.');
+        return;
+      }
+      st.leadMode = !!st.leadMode;
+      if (!st.signups) st.signups = {};
+      if (!st.notes) st.notes = {};
+      if (!st.held) st.held = {};
+      if (!st.onetime) st.onetime = [];
+      st.version = st.version || 1;
+      S = st;
+      say('ok', 'Imported: ' + S.templates.length + ' template(s), ' + S.roster.length + ' member(s).');
+    }
+  };
+
+  var changeHandlers = {
+    'slot-set': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (!ev) return;
+      putSignup(ev.id, setSlotMember(ev, signupState(ev.id), Number(el.dataset.idx), el.value));
+    },
+    'held-toggle': function (el) {
+      var ev = buildEvent(el.dataset.id);
+      if (!ev) return;
+      var memId = el.dataset.member;
+      var r = S.held[ev.id];
+      if (!r) r = S.held[ev.id] = { date: ev.date, name: ev.name, attendees: [], marked: false, markedAt: '' };
+      var ix = r.attendees.indexOf(memId);
+      if (el.checked && ix === -1) r.attendees.push(memId);
+      if (!el.checked && ix !== -1) r.attendees.splice(ix, 1);
+    },
+    'as-member': function () {
+    },
+    'member-role': function (el) {
+      var m = memberById(el.dataset.id);
+      if (!m) return;
+      var role = el.dataset.role;
+      m.roles = m.roles || [];
+      if (el.checked && m.roles.indexOf(role) === -1) m.roles.push(role);
+      if (!el.checked) m.roles = m.roles.filter(function (r) { return r !== role; });
+    },
+    'member-name': function (el) {
+      var m = memberById(el.dataset.id);
+      if (!m) return;
+      var v = (el.value || '').trim();
+      if (v) m.name = v;
+    },
+    'tpl-change': function (el) {
+      var t = templateById(el.dataset.tid);
+      if (!t) return;
+      var f = el.dataset.field;
+      var v = el.value;
+      if (f === 'name') { var nv = (v || '').trim(); if (nv) t.name = nv; }
+      else if (f === 'type') t.type = v;
+      else if (f === 'time') t.time = v;
+      else if (f === 'freq') {
+        var dd0 = (t.recurrence.days || []);
+        if (v === 'monthly') t.recurrence = { freq: v, days: [dd0.length ? dd0[0] : 0], nth: t.recurrence.nth || 1 };
+        else t.recurrence = { freq: v, days: dd0.length ? dd0 : [], anchor: t.recurrence.anchor || DEFAULT_ANCHOR };
+      } else if (f === 'wd') t.recurrence.days = [Number(v)];
+      else if (f === 'nth') t.recurrence.nth = Number(v);
+      else if (f === 'anchor') { if (/^\d{4}-\d{2}-\d{2}$/.test(v)) t.recurrence.anchor = v; }
+    },
+    'tpl-day': function (el) {
+      var t = templateById(el.dataset.tid);
+      if (!t) return;
+      var day = Number(el.dataset.day);
+      var days = t.recurrence.days || [];
+      if (el.checked) { if (days.indexOf(day) === -1) days.push(day); }
+      else t.recurrence.days = days.filter(function (d) { return d !== day; });
+      if (el.checked) t.recurrence.days = t.recurrence.days.slice().sort();
+    },
+    'tpl-slots': function (el) {
+      var t = templateById(el.dataset.tid);
+      if (!t) return;
+      var slots = (el.value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (slots.length > 0) t.slots = slots;
+    },
+    'note': function (el) {
+      S.notes[el.dataset.id] = el.value;
+    }
+  };
+
+  var inputHandlers = {
+    'member-name': function (el) { if (changeHandlers['member-name']) changeHandlers['member-name'](el); },
+    'note': function (el) { if (changeHandlers['note']) changeHandlers['note'](el); },
+    'tpl-change': function (el) { if (changeHandlers['tpl-change']) changeHandlers['tpl-change'](el); },
+    'tpl-slots': function (el) { if (changeHandlers['tpl-slots']) changeHandlers['tpl-slots'](el); }
+  };
+
+  function toEventRoleOptions() {
+    var memberSel = document.getElementById('as-member');
+    var roleSel = document.getElementById('as-role');
+    if (!memberSel || !roleSel) return;
+    var mem = memberById(memberSel.value);
+    var opts = '<option value="">Role wanted...</option>';
+    if (mem) {
+      var seen = {};
+      var roles = (mem.roles || []).slice();
+      roles.push('General');
+      for (var i = 0; i < roles.length; i++) {
+        if (seen[roles[i]]) continue;
+        seen[roles[i]] = true;
+        opts += '<option value="' + esc(roles[i]) + '">' + esc(roles[i]) + '</option>';
+      }
+    }
+    roleSel.innerHTML = opts;
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-action]') : null;
+    if (!el) return;
+    var fn = clickHandlers[el.dataset.action];
+    if (fn) fn(el);
+    save();
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    var name = el.dataset && el.dataset.onchange;
+    if (!name || !changeHandlers[name]) return;
+    if (el.id === 'as-member') { toEventRoleOptions(); return; }
+    changeHandlers[name](el);
+    save();
+  });
+  document.addEventListener('input', function (e) {
+    var el = e.target;
+    var name = el.dataset && el.dataset.oninput;
+    if (!name || !inputHandlers[name]) return;
+    inputHandlers[name](el);
+    saveQuiet();
+  });
+
+  document.getElementById('lead-mode').addEventListener('change', function (e) {
+    S.leadMode = e.target.checked;
+    save();
+  });
+
+  render();
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports.ui = {
+      setTab: function (tab) { U.tab = tab; U.eventId = null; render(); },
+      openEvent: function (id) { U.tab = 'event'; U.eventId = id; render(); },
+      render: render,
+      state: function () { return S; },
+      uiState: function () { return U; }
+    };
+  }
+})();
+}
+</script>
+</body>
+</html>

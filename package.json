@@ -1,0 +1,10 @@
+{
+  "name": "ffxiv-free-company-event-tracker",
+  "version": "1.0.0",
+  "description": "Offline, single-file event tracker for an FFXIV Free Company: calendar, signup grid with role slots, recurring templates, attendance history, and lead-only notes. No server, no accounts, no API.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node tests/run-tests.js"
+  }
+}
